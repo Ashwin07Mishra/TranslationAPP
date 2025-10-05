@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}Login | Translation Tool{% endblock %}
+
+{% block head %}
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+    * {
+        font-family: 'Poppins', sans-serif;
+    }
+    
+    .login-page {
+        min-height: 80vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    
+    .login-container {
+        width: 100%;
+        max-width: 420px;
+        padding: 35px;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    }
+    
+    .login-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    
+    .login-header h2 {
+        color: #333;
+        font-weight: 600;
+        font-size: 26px;
+    }
+    
+    .login-header p {
+        color: #777;
+        font-size: 14px;
+        margin-top: 5px;
+    }
+    
+    .form-group {
+        position: relative;
+        margin-bottom: 25px;
+    }
+    
+    .form-group i.input-icon {
+        position: absolute;
+        top: 12px;
+        left: 15px;
+        color: #6c757d;
+        font-size: 18px;
+        z-index: 2;
+        pointer-events: none;
+    }
+    
+    .form-group input {
+        width: 100%;
+        padding: 12px 15px 12px 45px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background-color: #f9f9f9;
+        font-size: 15px;
+        color: #333;
+        transition: all 0.3s ease;
+    }
+    
+    .form-group input[type="password"] {
+        padding-right: 45px; /* Make room for the visibility toggle */
+    }
+    
+    .form-group input:focus {
+        outline: none;
+        border-color: #212529;
+        background-color: #fff;
+        box-shadow: 0 0 0 3px rgba(33, 37, 41, 0.15);
+    }
+    
+    .btn-login {
+        width: 100%;
+        padding: 14px;
+        background-color: #546B82; /* Changed to match icon color (black) */
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        margin-top: 10px;
+    }
+    
+    .btn-login:hover {
+        background-color: #343a40; /* Lighter shade of dark for hover effect */
+    }
+    
+    .error-message {
+        padding: 12px;
+        background-color: #ffebee;
+        color: #d32f2f;
+        border-radius: 8px;
+        font-size: 14px;
+        margin-top: 15px;
+        display: none;
+        text-align: center;
+    }
+    
+    .logo-area {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+    
+    .logo-area i {
+        font-size: 40px;
+        /* Color removed to use the inline style for consistent black appearance */
+    }
+    
+    .toggle-password {
+        position: absolute;
+        right: 15px;
+        top: 12px;
+        cursor: pointer;
+        color: #6c757d;
+        z-index: 2;
+    }
+    
+    @media (max-width: 480px) {
+        .login-container {
+            padding: 25px;
+        }
+        
+        .form-group input {
+            padding: 10px 15px 10px 40px;
+        }
+        
+        .form-group i.input-icon {
+            top: 10px;
+        }
+        
+        .toggle-password {
+            top: 10px;
+        }
+    }
+    
+    /* Loading spinner animation */
+    .loading-spinner::after {
+        content: "...";
+        animation: dots 1.5s steps(5, end) infinite;
+    }
+    
+    @keyframes dots {
+        0%, 20% { content: ""; }
+        40% { content: "."; }
+        60% { content: ".."; }
+        80%, 100% { content: "..."; }
+    }
+    
+    /* Shake animation for error */
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+        20%, 40%, 60%, 80% { transform: translateX(5px); }
+    }
+    
+    .shake {
+        animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-page">
+    <div class="login-container">
+        <div class="logo-area">
+            <i class="bi bi-translate" style="color: #546B82;"></i>
+        </div>
+        <div class="login-header">
+            <h2>Welcome</h2>
+            <p>Enter your credentials to access the translation tool</p>
+        </div>
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <i class="bi bi-person input-icon"></i>
+                <input type="text" id="username" name="username" placeholder="Username" required>
+            </div>
+            <div class="form-group">
+                <i class="bi bi-lock input-icon"></i>
+                <input type="password" id="password" name="password" placeholder="Password" required>
+                <i class="bi bi-eye-slash toggle-password" id="togglePassword"></i>
+            </div>
+            <button type="submit" class="btn-login">Sign In</button>
+        </form>
+        <div id="errorMessage" class="error-message"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Toggle password visibility
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const passwordInput = document.getElementById('password');
+        const toggleIcon = this;
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            toggleIcon.classList.remove('bi-eye-slash');
+            toggleIcon.classList.add('bi-eye');
+        } else {
+            passwordInput.type = 'password';
+            toggleIcon.classList.remove('bi-eye');
+            toggleIcon.classList.add('bi-eye-slash');
+        }
+    });
+    
+    // Add input focus effects
+    const inputs = document.querySelectorAll('.form-group input');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            this.parentElement.querySelector('i.input-icon').style.color = '#212529';
+        });
+        
+        input.addEventListener('blur', function() {
+            this.parentElement.querySelector('i.input-icon').style.color = '#6c757d';
+        });
+    });
+    
+    async function handleLogin(event) {
+        event.preventDefault();
+        
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const errorMessage = document.getElementById('errorMessage');
+        const loginButton = document.querySelector('.btn-login');
+        
+        // Show loading state
+        loginButton.innerHTML = '<span class="loading-spinner">Signing in...</span>';
+        loginButton.disabled = true;
+        
+        try {
+            const response = await fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Successful login
+                errorMessage.style.display = 'none';
+                loginButton.innerHTML = 'Success!';
+                loginButton.style.backgroundColor = '#198754'; /* Bootstrap success green */
+                
+                setTimeout(() => {
+                    window.location.href = '/translation_tool';
+                }, 800);
+            } else {
+                // Login failed
+                errorMessage.style.display = 'block';
+                errorMessage.textContent = data.message || 'Invalid username or password. Please try again.';
+                loginButton.innerHTML = 'Sign In';
+                loginButton.disabled = false;
+                
+                // Shake effect for error
+                const loginForm = document.getElementById('loginForm');
+                loginForm.classList.add('shake');
+                setTimeout(() => loginForm.classList.remove('shake'), 500);
+            }
+        } catch (error) {
+            errorMessage.style.display = 'block';
+            errorMessage.textContent = 'Connection error. Please check your internet and try again.';
+            loginButton.innerHTML = 'Sign In';
+            loginButton.disabled = false;
+            console.error('Login error:', error);
+        }
+    }
+</script>
+{% endblock %}

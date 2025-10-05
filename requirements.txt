@@ -1,0 +1,12 @@
+accelerate==1.9.0
+Flask-SQLAlchemy==3.1.1
+gunicorn==23.0.0
+langdetect==1.0.9
+pdfplumber==0.11.7
+pypdf==5.9.0
+python-dotenv==1.1.1
+sentencepiece==0.2.0
+spacy==3.8.7
+transformers==4.36.2
+flask
+tqdm

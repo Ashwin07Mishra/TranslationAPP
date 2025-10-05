@@ -1,0 +1,1059 @@
+{% extends "base.html" %}
+
+{% block title %}PDF Translation Tool{% endblock %}
+
+{% block head %}
+    <style>
+        .upload-zone {
+            border: 2px dashed #6c757d;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .upload-zone:hover {
+            border-color: #0d6efd;
+            background-color: #f8f9fa;
+        }
+        
+        .upload-zone::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(13, 110, 253, 0.05);
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        
+        .upload-zone:hover::before {
+            opacity: 1;
+        }
+
+        .annotation-panel {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .annotation-item {
+            border-left: 4px solid #0d6efd;
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        .progress-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .annotation-actions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .annotation-item:hover .annotation-actions {
+            opacity: 1;
+        }
+
+        .btn-action {
+            padding: 2px 6px;
+            font-size: 0.75rem;
+            margin-left: 5px;
+        }
+
+        .edit-annotation {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        /* CSS for persistent text highlighting */
+        .persistent-highlight {
+            background-color: #007bff !important;
+            color: white !important;
+            padding: 1px 2px;
+            border-radius: 2px;
+        }
+
+        #translatedText::selection {
+            background-color: #007bff;
+            color: white;
+        }
+
+        #translatedText::-moz-selection {
+            background-color: #007bff;
+            color: white;
+        }
+
+        #translatedText {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+        }
+
+        #translatedText:focus::selection {
+            background-color: #0056b3;
+            color: white;
+        }
+
+        #translatedText:focus::-moz-selection {
+            background-color: #0056b3;
+            color: white;
+        }
+
+        .active-selection {
+            background-color: rgba(0, 123, 255, 0.3) !important;
+            border: 1px solid #007bff;
+        }
+
+        .annotation-form-input:focus {
+            outline: 2px solid #0d6efd !important;
+            outline-offset: 2px !important;
+            z-index: 1000;
+        }
+
+        /* Manual Transliteration Styles */
+        .transliteration-button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            z-index: 10;
+        }
+
+        .form-group-with-transliteration {
+            position: relative;
+        }
+
+        .transliterating {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .transliteration-status {
+            font-size: 0.7rem;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* FIXED: Proper textarea highlighting container - NO VERTICAL OFFSET */
+        .hwt-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            display: block;
+        }
+
+        .hwt-backdrop {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            pointer-events: none;
+            padding: 0;
+            /* REMOVED PADDING TO FIX OFFSET */
+            margin: 0;
+            border: 1px solid transparent;
+            /* Match textarea border without visual border */
+            border-radius: 0.375rem;
+            box-sizing: border-box;
+            background-color: transparent;
+        }
+
+        .hwt-highlights {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 15px;
+            /* MOVED PADDING HERE TO MATCH TEXTAREA */
+            border: none;
+            outline: none;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 20px;
+            line-height: 1.7;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: transparent;
+            background-color: transparent;
+            box-sizing: border-box;
+        }
+
+        .hwt-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 15px;
+            font-size: 20px;
+            line-height: 1.7;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            border: 1px solid #ced4da;
+            border-radius: 0.375rem;
+            box-sizing: border-box;
+            background-color: transparent;
+            color: black;
+            resize: none;
+            overflow: auto;
+            z-index: 2;
+            margin: 0;
+        }
+
+        .hwt-highlights mark {
+            padding: 2px 4px;
+            color: inherit;
+            background-color: #FFA500;
+            border-radius: 3px;
+            opacity: 0.8;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="text-center mb-4">
+            <p class="lead text-muted">Upload, translate, and review PDF documents</p>
+            <!-- <a href="/documents" class="btn btn-outline-secondary">View All Documents</a> -->
+        </div>
+
+        <!-- Upload Section -->
+        <div id="uploadSection" class="mb-4">
+            <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                <h4 class="mt-3">Click or Drag & Drop PDF</h4>
+                <p class="text-muted">Select a PDF file for translation (Max 16MB)</p>
+                <i class="bi bi-file-earmark-pdf display-4 mb-3 text-secondary"></i>
+                <input type="file" id="fileInput" accept=".pdf" class="d-none">
+            </div>
+        </div>
+
+        <!-- Simple Progress Section -->
+        <div id="progressSection" class="d-none">
+            <div class="progress-container">
+                <h5 class="text-center mb-4">Processing your document...</h5>
+
+                <div class="progress mb-3" style="height: 25px;">
+                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                        role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        <span id="progressText" class="fw-bold text-white">0%</span>
+                    </div>
+                </div>
+
+                <div id="currentStep" class="text-center text-muted">Starting...</div>
+            </div>
+        </div>
+
+        <!-- Main Interface -->
+        <div id="mainInterface" class="d-none">
+            <!-- Status Info -->
+            <div id="statusAlert" class="alert alert-success" role="alert"></div>
+
+            <div class="row">
+                <!-- Translation Text Panel -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Translated Text</h5>
+                            <small class="text-muted">Select text to mark errors (orange highlights show annotated
+                                text)</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="hwt-container">
+                                <div class="hwt-backdrop">
+                                    <div class="hwt-highlights" id="highlightLayer"></div>
+                                </div>
+                                <textarea id="translatedText" class="hwt-input" readonly spellcheck="false"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Annotation Panel -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Annotations (<span id="annotationCount">0</span>)</h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- Annotation Form -->
+                            <div id="annotationForm" class="d-none mb-3">
+                                <h6>Mark Error</h6>
+                                <div class="mb-2">
+                                    <label class="form-label">Selected Text:</label>
+                                    <input type="text" id="selectedText" class="form-control annotation-form-input"
+                                        readonly>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Error Type:</label>
+                                    <select id="errorType" class="form-select annotation-form-input">
+                                        <option value="grammar">Grammar</option>
+                                        <option value="meaning">Meaning</option>
+                                        <option value="context">Context</option>
+                                        <option value="terminology">Terminology</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2 form-group-with-transliteration">
+                                    <label class="form-label">Comment:</label>
+                                    <textarea id="comment" class="form-control annotation-form-input" rows="2"
+                                        placeholder="Type your comment in English, then click Hindi button to convert"></textarea>
+                                    <button type="button" class="btn btn-outline-primary btn-sm transliteration-button"
+                                        onclick="translateToHindi('comment')" title="Convert to Hindi">
+                                        <i class="bi bi-translate"></i> हिंदी
+                                    </button>
+                                </div>
+                                <div class="mb-3 form-group-with-transliteration">
+                                    <label class="form-label">Suggested Fix:</label>
+                                    <textarea id="suggestedCorrection" class="form-control annotation-form-input"
+                                        rows="2"
+                                        placeholder="Type your correction in English, then click Hindi button to convert"></textarea>
+                                    <button type="button" class="btn btn-outline-primary btn-sm transliteration-button"
+                                        onclick="translateToHindi('suggestedCorrection')" title="Convert to Hindi">
+                                        <i class="bi bi-translate"></i> हिंदी
+                                    </button>
+                                </div>
+                                <button onclick="saveAnnotation()" class="btn btn-primary btn-sm me-2">Save</button>
+                                <button onclick="cancelAnnotation()" class="btn btn-secondary btn-sm">Cancel</button>
+                            </div>
+
+                            <!-- Annotations List -->
+                            <div id="annotationList" class="annotation-panel"></div>
+
+                            <!-- Complete Button -->
+                            <button onclick="finalizeReview()" class="btn btn-success w-100 mt-3">
+                                Complete Review
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variables
+        let currentJobId = null;
+        let currentSelection = null;
+        let annotations = [];
+        let progressInterval = null;
+        let editingAnnotationId = null;
+        let selectionInterval = null;
+        let isUserSelecting = false;
+
+        // FIXED: Proper HTML escaping functions
+        function escapeHtml(text) {
+            return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function escapeOutsideMark(text) {
+            return text.split(/(<mark>.*?<\/mark>)/g).map(part => {
+                if (part.startsWith('<mark>') && part.endsWith('</mark>')) {
+                    return part;
+                } else {
+                    return escapeHtml(part);
+                }
+            }).join('');
+        }
+
+        // FIXED: Proper textarea highlighting functions
+        function updateHighlights() {
+            const textArea = document.getElementById('translatedText');
+            const highlightLayer = document.getElementById('highlightLayer');
+            if (!textArea || !highlightLayer) return;
+
+            let text = textArea.value;
+
+            // Apply highlights to text based on annotations
+            if (annotations.length > 0) {
+                // Sort annotations by start position (reverse order to avoid position shifts)
+                const sortedAnnotations = [...annotations].sort((a, b) => b.start_position - a.start_position);
+                sortedAnnotations.forEach(annotation => {
+                    const start = annotation.start_position;
+                    const end = annotation.end_position;
+                    if (start < 0 || end > text.length || start >= end) return;
+                    const selectedText = text.substring(start, end);
+                    text = text.substring(0, start) + `<mark>${selectedText}</mark>` + text.substring(end);
+                });
+            }
+
+            // Fix trailing newlines to prevent layout issues
+            text = text.replace(/\n$/g, '\n\n');
+
+            // Escape outside mark tags (this preserves the highlighting while escaping other HTML)
+            text = escapeOutsideMark(text);
+
+            highlightLayer.innerHTML = text;
+        }
+
+        // FIXED: Enhanced scroll synchronization to prevent vertical offset
+        function handleScroll() {
+            const textArea = document.getElementById('translatedText');
+            const backdrop = document.querySelector('.hwt-backdrop');
+
+            if (textArea && backdrop) {
+                // Force exact synchronization
+                backdrop.scrollTop = textArea.scrollTop;
+                backdrop.scrollLeft = textArea.scrollLeft;
+
+                // Additional sync to ensure alignment
+                requestAnimationFrame(() => {
+                    backdrop.scrollTop = textArea.scrollTop;
+                    backdrop.scrollLeft = textArea.scrollLeft;
+                });
+            }
+        }
+
+        // Manual transliteration function using Google API
+        async function translateToHindi(fieldId) {
+            const field = document.getElementById(fieldId);
+            const button = field.parentElement.querySelector('.transliteration-button');
+            const text = field.value.trim();
+
+            if (!text) {
+                showToast('Please enter some text first', 'warning');
+                return;
+            }
+
+            // Show loading state
+            button.classList.add('transliterating');
+            button.innerHTML = '<i class="bi bi-arrow-repeat"></i> Converting...';
+            button.disabled = true;
+
+            try {
+                const translatedText = await transliterateFullText(text);
+                field.value = translatedText;
+                showToast('Text converted to Hindi successfully!', 'success');
+            } catch (error) {
+                console.error('Translation failed:', error);
+                showToast('Translation failed. Please try again.', 'error');
+            } finally {
+                // Reset button state
+                button.classList.remove('transliterating');
+                button.innerHTML = '<i class="bi bi-translate"></i> हिंदी';
+                button.disabled = false;
+            }
+        }
+
+        // Transliterate full text (handles multiple words)
+        async function transliterateFullText(text) {
+            const words = text.split(/(\s+)/); // Split but preserve whitespace
+            const translatedWords = [];
+
+            for (let word of words) {
+                if (word.trim().length > 0) {
+                    const translatedWord = await transliterateWord(word.trim());
+                    translatedWords.push(translatedWord);
+                } else {
+                    // Preserve whitespace
+                    translatedWords.push(word);
+                }
+            }
+
+            return translatedWords.join('');
+        }
+
+        // Individual word transliteration using Google API
+        async function transliterateWord(word) {
+            try {
+                const response = await fetch(`https://inputtools.google.com/request?text=${encodeURIComponent(word)}&itc=hi-t-i0-und&num=5&cp=0&cs=1&ie=utf-8&oe=utf-8&app=jsapi`);
+                const data = await response.json();
+
+                if (data && data[1] && data[1][0] && data[1][0][1] && data[1][0][1].length > 0) {
+                    return data[1][0][1][0]; // First transliteration result
+                }
+
+                // Fallback to dictionary
+                return transliterateWordFallback(word);
+            } catch (error) {
+                console.warn('API transliteration failed for word:', word);
+                return transliterateWordFallback(word);
+            }
+        }
+
+        // Fallback dictionary for common words
+        function transliterateWordFallback(word) {
+            const commonWords = {
+                'namaste': 'नमस्ते', 'dhanyawad': 'धन्यवाद', 'kya': 'क्या', 'hai': 'है',
+                'main': 'मैं', 'aap': 'आप', 'yah': 'यह', 'wah': 'वह', 'kahan': 'कहाँ',
+                'kaise': 'कैसे', 'kab': 'कब', 'kyun': 'क्यों', 'kaun': 'कौन', 'kitna': 'कितना',
+                'achha': 'अच्छा', 'bura': 'बुरा', 'samay': 'समय', 'paisa': 'पैसा', 'ghar': 'घर',
+                'school': 'स्कूल', 'office': 'ऑफिस', 'computer': 'कंप्यूटर', 'mobile': 'मोबाइल',
+                'internet': 'इंटरनेट', 'galat': 'गलत', 'sahi': 'सही', 'theek': 'ठीक',
+                'karo': 'करो', 'karna': 'करना', 'dekho': 'देखो', 'suniye': 'सुनिए', 'boliye': 'बोलिए',
+                'problem': 'समस्या', 'solution': 'समाधान', 'help': 'मदद', 'good': 'अच्छा',
+                'bad': 'बुरा', 'yes': 'हाँ', 'no': 'नहीं', 'please': 'कृपया', 'thank': 'धन्यवाद',
+                'you': 'आप', 'me': 'मुझे', 'we': 'हम', 'they': 'वे', 'this': 'यह', 'that': 'वह'
+            };
+
+            return commonWords[word.toLowerCase()] || word;
+        }
+
+        // File upload handler
+        document.getElementById('fileInput').addEventListener('change', function (e) {
+            if (e.target.files[0]) uploadFile(e.target.files[0]);
+        });
+
+        // Drag and Drop functionality
+        const dropZone = document.getElementById('dropZone');
+        
+        // Prevent default behavior for drag events on the entire document
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            document.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        // Highlight drop zone when file is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+        
+        function highlight() {
+            dropZone.classList.add('bg-light');
+            dropZone.style.borderColor = '#0d6efd';
+            dropZone.style.borderStyle = 'solid';
+            dropZone.querySelector('i').classList.remove('text-secondary');
+            dropZone.querySelector('i').classList.add('text-primary');
+            dropZone.querySelector('h4').innerHTML = 'Drop PDF Here';
+        }
+        
+        function unhighlight() {
+            dropZone.classList.remove('bg-light');
+            dropZone.style.borderColor = '#6c757d';
+            dropZone.style.borderStyle = 'dashed';
+            dropZone.querySelector('i').classList.remove('text-primary');
+            dropZone.querySelector('i').classList.add('text-secondary');
+            dropZone.querySelector('h4').innerHTML = 'Click or Drag & Drop PDF';
+        }
+        
+        // Handle dropped files
+        dropZone.addEventListener('drop', handleDrop, false);
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                    uploadFile(file);
+                } else {
+                    showToast('Please upload a PDF file', 'warning');
+                }
+            }
+        }
+
+        async function uploadFile(file) {
+            // Validate file type
+            if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                showToast('Only PDF files are allowed', 'danger');
+                return;
+            }
+            
+            // Validate file size (max 16MB)
+            if (file.size > 16 * 1024 * 1024) {
+                showToast('File size exceeds the 16MB limit', 'danger');
+                return;
+            }
+            
+            document.getElementById('uploadSection').classList.add('d-none');
+            document.getElementById('progressSection').classList.remove('d-none');
+            
+            // Show file name in progress section
+            document.getElementById('progressSection').querySelector('h5').innerHTML = 
+                `Processing File...`;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    currentJobId = result.job_id;
+                    startProgressPolling();
+                } else {
+                    resetProgress();
+                    showToast('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                resetProgress();
+                showToast('Upload failed: ' + error.message, 'danger');
+            }
+        }
+
+        function startProgressPolling() {
+            progressInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/progress/${currentJobId}`);
+                    const data = await response.json();
+
+                    updateProgress(data.progress || 0, data.step || 'Processing...');
+
+                    if (data.completed) {
+                        clearInterval(progressInterval);
+
+                        if (data.result) {
+                            updateProgress(100, 'Complete!');
+                            setTimeout(() => {
+                                showTranslation(data.result);
+                            }, 1000);
+                        } else if (data.error) {
+                            resetProgress();
+                            alert('Translation failed');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Progress polling failed:', error);
+                }
+            }, 1000);
+        }
+
+        function updateProgress(percent, step) {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const currentStep = document.getElementById('currentStep');
+
+            progressBar.style.width = percent + '%';
+            progressBar.setAttribute('aria-valuenow', percent);
+            progressText.textContent = percent + '%';
+            currentStep.textContent = step;
+        }
+
+        function resetProgress() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+            document.getElementById('progressSection').classList.add('d-none');
+            document.getElementById('uploadSection').classList.remove('d-none');
+            updateProgress(0, 'Starting...');
+        }
+
+        // ENHANCED: Add scroll event listener with better synchronization
+        function showTranslation(result) {
+            document.getElementById('progressSection').classList.add('d-none');
+            document.getElementById('mainInterface').classList.remove('d-none');
+
+            document.getElementById('statusAlert').innerHTML =
+                `<strong>Translation Complete!</strong> ${result.source_language} → ${result.target_language}<br>
+                 <small>File: ${result.original_filename}</small>`;
+
+            const textArea = document.getElementById('translatedText');
+            textArea.value = result.translated_text;
+
+            // Initialize highlighting
+            updateHighlights();
+
+            // Set up event handlers with enhanced scroll sync
+            textArea.addEventListener('input', updateHighlights);
+            textArea.addEventListener('scroll', handleScroll);
+            textArea.addEventListener('mouseup', handleTextSelection);
+            textArea.addEventListener('keyup', handleTextSelection);
+
+            // ADDED: Additional scroll events for better sync
+            textArea.addEventListener('wheel', handleScroll);
+            textArea.addEventListener('touchmove', handleScroll);
+
+            textArea.addEventListener('mousedown', function () {
+                if (!document.getElementById('annotationForm').classList.contains('d-none')) {
+                    isUserSelecting = true;
+                    if (selectionInterval) {
+                        clearInterval(selectionInterval);
+                        selectionInterval = null;
+                    }
+                }
+            });
+
+            // ADDED: Force initial alignment
+            setTimeout(() => {
+                handleScroll();
+                updateHighlights();
+            }, 100);
+        }
+
+        function handleTextSelection() {
+            const textArea = document.getElementById('translatedText');
+            const start = textArea.selectionStart;
+            const end = textArea.selectionEnd;
+            const selectedText = textArea.value.substring(start, end).trim();
+
+            if (selectedText.length > 0) {
+                if (selectionInterval) {
+                    clearInterval(selectionInterval);
+                    selectionInterval = null;
+                }
+
+                currentSelection = {
+                    text: selectedText,
+                    start: start,
+                    end: end
+                };
+
+                showAnnotationFormWithPersistentHighlight();
+            }
+        }
+
+        function showAnnotationFormWithPersistentHighlight() {
+            document.getElementById('selectedText').value = currentSelection.text;
+
+            if (!document.getElementById('annotationForm').classList.contains('d-none')) {
+                return;
+            }
+
+            document.getElementById('annotationForm').classList.remove('d-none');
+
+            const textArea = document.getElementById('translatedText');
+            isUserSelecting = false;
+
+            const maintainSelection = () => {
+                if (currentSelection &&
+                    !document.getElementById('annotationForm').classList.contains('d-none') &&
+                    !isUserSelecting) {
+
+                    const activeElement = document.activeElement;
+                    const isFormInputFocused = activeElement && (
+                        activeElement.tagName === 'INPUT' ||
+                        activeElement.tagName === 'TEXTAREA' ||
+                        activeElement.tagName === 'SELECT'
+                    ) && activeElement !== textArea;
+
+                    if (!isFormInputFocused) {
+                        const currentStart = textArea.selectionStart;
+                        const currentEnd = textArea.selectionEnd;
+
+                        if (currentStart !== currentSelection.start || currentEnd !== currentSelection.end) {
+                            textArea.setSelectionRange(currentSelection.start, currentSelection.end);
+                        }
+                    }
+                }
+            };
+
+            selectionInterval = setInterval(() => {
+                if (document.getElementById('annotationForm').classList.contains('d-none')) {
+                    clearInterval(selectionInterval);
+                    selectionInterval = null;
+                } else {
+                    maintainSelection();
+                }
+            }, 300);
+
+            textArea.focus();
+            textArea.setSelectionRange(currentSelection.start, currentSelection.end);
+        }
+
+        function cancelAnnotation() {
+            document.getElementById('annotationForm').classList.add('d-none');
+
+            if (selectionInterval) {
+                clearInterval(selectionInterval);
+                selectionInterval = null;
+            }
+
+            isUserSelecting = false;
+
+            const textArea = document.getElementById('translatedText');
+            textArea.setSelectionRange(0, 0);
+
+            clearForm();
+        }
+
+        async function saveAnnotation() {
+            const data = {
+                job_id: currentJobId,
+                start_position: currentSelection.start,
+                end_position: currentSelection.end,
+                selected_text: currentSelection.text,
+                error_type: document.getElementById('errorType').value,
+                comment: document.getElementById('comment').value,
+                suggested_correction: document.getElementById('suggestedCorrection').value
+            };
+
+            try {
+                const response = await fetch('/annotate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    addAnnotationToList({ ...data, id: result.annotation_id });
+                    cancelAnnotation();
+                    showToast('Annotation saved successfully', 'success');
+                } else {
+                    alert('Failed to save annotation: ' + result.error);
+                }
+            } catch (error) {
+                alert('Network error: ' + error.message);
+            }
+        }
+
+        function addAnnotationToList(annotation) {
+            const listElement = document.getElementById('annotationList');
+            const item = document.createElement('div');
+            item.className = 'card annotation-item';
+            item.id = `annotation-${annotation.id}`;
+            item.innerHTML = `
+                <div class="card-body p-2">
+                    <div class="annotation-actions">
+                        <button class="btn btn-outline-primary btn-action" onclick="editAnnotationInline(${annotation.id})" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-action" onclick="deleteAnnotationFromList(${annotation.id})" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                    <h6 class="card-title text-capitalize annotation-type">${annotation.error_type}</h6>
+                    <p class="card-text"><em>"${annotation.selected_text}"</em></p>
+                    <div class="annotation-content">
+                        ${annotation.comment ? `<p class="card-text"><small class="annotation-comment">${annotation.comment}</small></p>` : ''}
+                        ${annotation.suggested_correction ? `<p class="card-text"><strong>Fix:</strong> <span class="annotation-correction">${annotation.suggested_correction}</span></p>` : ''}
+                    </div>
+                    <small class="text-muted">Just now</small>
+                </div>
+            `;
+            listElement.appendChild(item);
+            annotations.push(annotation);
+
+            updateAnnotationCounter();
+            updateHighlights(); // Update highlights after adding annotation
+        }
+
+        function editAnnotationInline(annotationId) {
+            if (editingAnnotationId) {
+                cancelEditInline(editingAnnotationId);
+            }
+
+            editingAnnotationId = annotationId;
+            const annotationElement = document.getElementById(`annotation-${annotationId}`);
+            const annotation = annotations.find(a => a.id === annotationId);
+
+            const contentDiv = annotationElement.querySelector('.annotation-content');
+            const currentType = annotationElement.querySelector('.annotation-type').textContent.toLowerCase();
+
+            const editForm = document.createElement('div');
+            editForm.className = 'edit-annotation';
+            editForm.innerHTML = `
+                <div class="mb-2">
+                    <label class="form-label"><strong>Error Type:</strong></label>
+                    <select class="form-select form-select-sm annotation-form-input" id="edit-type-${annotationId}">
+                        <option value="grammar" ${currentType === 'grammar' ? 'selected' : ''}>Grammar</option>
+                        <option value="meaning" ${currentType === 'meaning' ? 'selected' : ''}>Meaning</option>
+                        <option value="context" ${currentType === 'context' ? 'selected' : ''}>Context</option>
+                        <option value="terminology" ${currentType === 'terminology' ? 'selected' : ''}>Terminology</option>
+                        <option value="other" ${currentType === 'other' ? 'selected' : ''}>Other</option>
+                    </select>
+                </div>
+                <div class="mb-2 form-group-with-transliteration">
+                    <label class="form-label"><strong>Comment:</strong></label>
+                    <textarea class="form-control annotation-form-input" id="edit-comment-${annotationId}" rows="2">${annotation.comment || ''}</textarea>
+                    <button type="button" class="btn btn-outline-primary btn-sm transliteration-button" onclick="translateToHindi('edit-comment-${annotationId}')" title="Convert to Hindi">
+                        <i class="bi bi-translate"></i> हिंदी
+                    </button>
+                </div>
+                <div class="mb-2 form-group-with-transliteration">
+                    <label class="form-label"><strong>Suggested Correction:</strong></label>
+                    <textarea class="form-control annotation-form-input" id="edit-correction-${annotationId}" rows="2">${annotation.suggested_correction || ''}</textarea>
+                    <button type="button" class="btn btn-outline-primary btn-sm transliteration-button" onclick="translateToHindi('edit-correction-${annotationId}')" title="Convert to Hindi">
+                        <i class="bi bi-translate"></i> हिंदी
+                    </button>
+                </div>
+                <div class="text-end">
+                    <button class="btn btn-success btn-sm me-2" onclick="saveEditInline(${annotationId})">
+                        <i class="bi bi-check"></i> Save
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="cancelEditInline(${annotationId})">
+                        <i class="bi bi-x"></i> Cancel
+                    </button>
+                </div>
+            `;
+
+            contentDiv.style.display = 'none';
+            annotationElement.querySelector('.card-body').appendChild(editForm);
+        }
+
+        async function saveEditInline(annotationId) {
+            const errorType = document.getElementById(`edit-type-${annotationId}`).value;
+            const comment = document.getElementById(`edit-comment-${annotationId}`).value;
+            const suggestedCorrection = document.getElementById(`edit-correction-${annotationId}`).value;
+
+            const data = {
+                error_type: errorType,
+                comment: comment,
+                suggested_correction: suggestedCorrection
+            };
+
+            try {
+                const response = await fetch(`/annotation/${annotationId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    const annotation = annotations.find(a => a.id === annotationId);
+                    Object.assign(annotation, data);
+
+                    updateAnnotationDisplayInline(annotationId, data);
+                    cancelEditInline(annotationId);
+
+                    showToast('Annotation updated successfully', 'success');
+                } else {
+                    alert('Failed to update annotation: ' + result.error);
+                }
+            } catch (error) {
+                alert('Network error: ' + error.message);
+            }
+        }
+
+        function updateAnnotationDisplayInline(annotationId, data) {
+            const annotationElement = document.getElementById(`annotation-${annotationId}`);
+
+            const typeElement = annotationElement.querySelector('.annotation-type');
+            typeElement.textContent = data.error_type.charAt(0).toUpperCase() + data.error_type.slice(1);
+
+            const contentDiv = annotationElement.querySelector('.annotation-content');
+            contentDiv.innerHTML = `
+                ${data.comment ? `<p class="card-text"><small class="annotation-comment">${data.comment}</small></p>` : ''}
+                ${data.suggested_correction ? `<p class="card-text"><strong>Fix:</strong> <span class="annotation-correction">${data.suggested_correction}</span></p>` : ''}
+            `;
+        }
+
+        function cancelEditInline(annotationId) {
+            const annotationElement = document.getElementById(`annotation-${annotationId}`);
+            const editForm = annotationElement.querySelector('.edit-annotation');
+            const contentDiv = annotationElement.querySelector('.annotation-content');
+
+            if (editForm) {
+                editForm.remove();
+            }
+            contentDiv.style.display = 'block';
+            editingAnnotationId = null;
+        }
+
+        async function deleteAnnotationFromList(annotationId) {
+            if (!confirm('Are you sure you want to delete this annotation?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/annotation/${annotationId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    const annotationElement = document.getElementById(`annotation-${annotationId}`);
+                    annotationElement.remove();
+
+                    annotations = annotations.filter(a => a.id !== annotationId);
+
+                    updateAnnotationCounter();
+                    updateHighlights(); // Update highlights after deletion
+                    showToast('Annotation deleted successfully', 'success');
+                } else {
+                    alert('Failed to delete annotation: ' + result.error);
+                }
+            } catch (error) {
+                alert('Network error: ' + error.message);
+            }
+        }
+
+        function updateAnnotationCounter() {
+            const counter = document.getElementById('annotationCount');
+            const button = document.querySelector('button[onclick="finalizeReview()"]');
+
+            counter.textContent = annotations.length;
+            button.textContent = `Complete Review (${annotations.length} annotations)`;
+        }
+
+        async function finalizeReview() {
+            if (!confirm(`Complete review with ${annotations.length} annotations?`)) return;
+
+            try {
+                const response = await fetch(`/finalize/${currentJobId}`, { method: 'POST' });
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(`Review completed!\nFile: ${result.filename}\nAnnotations: ${result.total_annotations}`);
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function clearForm() {
+            document.getElementById('comment').value = '';
+            document.getElementById('suggestedCorrection').value = '';
+            document.getElementById('errorType').selectedIndex = 0;
+            currentSelection = null;
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+            toast.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 3000);
+        }
+    </script>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        // Additional script can be added here if needed
+    </script>
+{% endblock %}
