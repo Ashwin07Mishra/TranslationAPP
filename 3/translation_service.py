@@ -15,6 +15,7 @@ import time
 import gc
 import fitz  # PyMuPDF for better structure detection
 from collections import defaultdict
+import pdfkit
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -198,6 +199,30 @@ def analyze_font_hierarchy(pdf_path):
     except Exception as e:
         logger.warning(f"Font analysis failed: {e}")
         return (12, 0), [(14, 16), (16, 16)]  # Default values
+
+def create_translated_pdf(html_content: str, output_path: str = "transop.pdf"):
+    """
+    Converts HTML-formatted translated content into a PDF file.
+    Saves as 'transop.pdf' by default.
+    """
+    try:
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
+        # You can customize options (margins, page size, etc.) as needed
+        options = {
+            "enable-local-file-access": None,
+            "quiet": "",
+            "page-size": "A4",
+            "margin-top": "20mm",
+            "margin-bottom": "20mm",
+            "margin-left": "15mm",
+            "margin-right": "15mm"
+        }
+        pdfkit.from_string(html_content, output_path, options=options)
+        logger.info(f"Translated PDF saved to: {output_path}")
+    except Exception as e:
+        logger.error(f"Failed to create PDF: {e}")
+        raise
 
 def extract_structured_text(pdf_path):
     """Extract text with structure information (headings, paragraphs, lists)"""
@@ -387,55 +412,65 @@ def translate_structured_document(structured_doc, src_language, tgt_language, to
     return translated_doc
 
 def format_translated_document(translated_doc, target_language):
-    """Format the translated document back to structured text"""
-    formatted_text = []
+    """Format the translated document as HTML for PDF generation"""
+    html_content = [
+        '<html>',
+        '<head>',
+        '<meta charset="UTF-8">',
+        '<style>',
+        'body { font-family: Arial, "Noto Serif Devanagari", sans-serif; font-size: 12pt; margin: 20px; }',
+        'h2 { font-size: 18pt; font-weight: bold; margin-top: 20px; }',
+        'h3 { font-size: 16pt; font-weight: bold; margin-top: 15px; }',
+        'h4 { font-size: 14pt; font-weight: bold; margin-top: 10px; }',
+        'p { margin: 10px 0; line-height: 1.5; }',
+        'li { margin: 5px 0; }',
+        'ul, ol { margin-left: 20px; }',
+        '</style>',
+        '</head>',
+        '<body>'
+    ]
     
     for section in translated_doc:
         # Add section heading
         if section['heading']:
-            if target_language == "hin_Deva":
-                formatted_text.append(f"## {section['heading']}\n")
-            else:
-                formatted_text.append(f"## {section['heading']}\n")
+            html_content.append(f'<h2>{section["heading"]}</h2>')
         
         # Add content items
         for item in section['content']:
             if item['type'] == 'heading':
-                formatted_text.append(f"### {item['text']}\n")
+                html_content.append(f'<h3>{item["text"]}</h3>')
             
             elif item['type'] == 'subheading':
-                formatted_text.append(f"**{item['text']}**\n")
+                html_content.append(f'<h4>{item["text"]}</h4>')
             
             elif item['type'] == 'list_item':
                 if item.get('list_type') == 'numbered_item':
-                    # Extract number if present
                     number_match = re.match(r'^(\d+\.?)\s*(.*)', item['text'])
                     if number_match:
                         number, text = number_match.groups()
-                        formatted_text.append(f"{number} {text}\n")
+                        html_content.append(f'<ol><li value="{number.rstrip(".")}">{text}</li></ol>')
                     else:
-                        formatted_text.append(f"1. {item['text']}\n")
+                        html_content.append(f'<ol><li>{item["text"]}</li></ol>')
                 
                 elif item.get('list_type') == 'bullet_item':
-                    formatted_text.append(f"• {item['text']}\n")
+                    html_content.append(f'<ul><li>{item["text"]}</li></ul>')
                 
                 elif item.get('list_type') == 'lettered_item':
-                    # Extract letter if present
                     letter_match = re.match(r'^([A-Z]\.?)\s*(.*)', item['text'])
                     if letter_match:
                         letter, text = letter_match.groups()
-                        formatted_text.append(f"{letter} {text}\n")
+                        html_content.append(f'<ol style="list-style-type: upper-alpha;"><li value="{letter.rstrip(".")}">{text}</li></ol>')
                     else:
-                        formatted_text.append(f"A. {item['text']}\n")
+                        html_content.append(f'<ol style="list-style-type: upper-alpha;"><li>{item["text"]}</li></ol>')
             
             else:  # regular paragraph
-                formatted_text.append(f"{item['text']}\n\n")
+                html_content.append(f'<p>{item["text"]}</p>')
         
-        formatted_text.append("\n")  # Section separator
+        html_content.append('<br>')
     
-    return "".join(formatted_text)
+    html_content.append('</body></html>')
+    return "".join(html_content)
 
-# Keep existing translation functions (translate_chunk, get_token_count, etc.)
 def clean_hindi_text(text):
     """Remove extra spaces and fix Hindi punctuation"""
     if not text:
@@ -582,6 +617,7 @@ translation_progress = {}
 def translate_pdf_document(pdf_path, job_id=None):
     """
     Translate PDF document with structure preservation
+    Saves translated PDF as 'transop.pdf' in the workspace directory
     Returns: dict with original_text, translated_text, source_language, target_language
     """
     models = None
@@ -644,9 +680,12 @@ def translate_pdf_document(pdf_path, job_id=None):
         # Format final document
         logger.info("Formatting translated document...")
         final_translation = format_translated_document(translated_doc, tgt_language)
-        
-        # Create original text representation
         original_text = format_translated_document(structured_doc, src_language)
+        
+        # Generate PDF
+        output_pdf = "transop.pdf"
+        logger.info(f"Generating PDF: {output_pdf}")
+        create_translated_pdf(final_translation, output_pdf)
         
         # Final cache clear
         clear_all_cache()
