@@ -11,7 +11,8 @@ it use "Indicbert 1B" model for translation.
 
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt for cpu 
+pip install -r requirements2.txt for gpu
 
 ```
 
@@ -43,4 +44,6 @@ python run.py
 
 ![work](demo/work.png)
 
+![work](demo/screenshot1.png)
 
+![work](demo/screenshot2.png)

@@ -1,0 +1,27 @@
+# Web framework
+Flask==3.1.2
+Flask-SQLAlchemy==3.1.1
+gunicorn==23.0.0
+python-dotenv==1.1.1
+
+# NLP & Indic translation
+transformers==4.36.2
+torch==2.3.1+cu121            # Replace with appropriate CUDA version installed on GPU machine
+sentencepiece==0.2.0
+IndicTransToolkit==1.1.1      # Your local or pip version
+spacy==3.8.7
+en-core-web-sm==3.8.0         # Can be installed via pip or spacy CLI
+
+# PDF handling
+pdfplumber==0.11.7
+PyMuPDF==1.26.5
+pypdf==5.9.0
+pdfkit==1.0.0
+reportlab==4.4.4
+weasyprint==66.0
+Brotli==1.1.0
+zopfli==0.2.3.post1
+
+# Optional helpers (used internally by libraries)
+accelerate==1.10.1
+#system independent gpu based

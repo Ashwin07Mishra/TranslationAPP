@@ -15,15 +15,11 @@ class RobustFontDetector:
     def _register_unicode_fonts(self):
         """Find Hindi fonts - prefers Regular over Variable for smaller file size"""
         try:
-            custom_font_dir = os.path.expanduser("~/Downloads/Noto_Sans_Devanagari")
+            custom_font_dir = os.path.join(os.path.dirname(__file__), "..", "fonts", "Noto_Sans_Devanagari")
             
-            # Check for fonts in order of preference (Regular is much smaller)
             font_paths = [
-                # Prefer Regular weight (smaller file size)
                 os.path.join(custom_font_dir, "NotoSansDevanagari-Regular.ttf"),
-                # Fallback to variable font (larger)
                 os.path.join(custom_font_dir, "NotoSansDevanagari-VariableFont_wdth,wght.ttf"),
-                # System fonts
                 "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
                 "/usr/share/fonts/truetype/noto/NotoSansDevanagari[wght].ttf",
             ]
@@ -35,9 +31,10 @@ class RobustFontDetector:
                     print(f"✅ Found Hindi font: {font_path} ({font_size_mb:.2f} MB)")
                     return
             
-            print("⚠️ No Hindi font found - boxes will appear!")
+            print("⚠️ No Hindi font found in project folder - boxes will appear!")
         except Exception as e:
             print(f"⚠️ Font detection error: {e}")
+
     
     def get_font_path(self):
         """Returns the detected Hindi font path"""
@@ -241,7 +238,7 @@ class PDFRecreator:
         
         if not font_path or not os.path.exists(font_path):
             print("❌ ERROR: Hindi font not found! Text will appear as boxes.")
-            print(f"   Expected font at: ~/Downloads/Noto_Sans_Devanagari/")
+    
             return False
         
         # CSS configuration for Hindi
